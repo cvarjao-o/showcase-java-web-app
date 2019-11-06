@@ -1,0 +1,99 @@
+logging.metrics.enabled: false
+metricbeat.modules:
+  - module: jolokia
+    metricsets: ["jmx"]
+    enabled: true
+    period: 10s
+    hosts: ["localhost:7070"]
+    namespace: "jmx"
+    path: "/jolokia"
+    http_method: 'GET'
+    jmx.mappings:
+      - mbean: 'java.lang:type=Memory'
+        attributes:
+         - attr: HeapMemoryUsage
+           field: memory.heap
+           event: jmx
+         - attr: NonHeapMemoryUsage
+           field: memory.other
+           event: jmx
+      - mbean: 'java.lang:name=*,type=MemoryPool'
+        attributes:
+         - attr: Name
+           field: memory.pool.name
+         - attr: Type
+           field: memory.pool.type
+         - attr: Usage
+           field: memory.pool.usage
+         - attr: PeakUsage
+           field: memory.pool.peakUsage
+      - mbean: 'Catalina:name=*,type=ThreadPool'
+        attributes:
+          - attr: currentThreadsBusy
+            field: thread.pool.busy
+            event: jmx
+          - attr: maxThreads
+            field: thread.pool.max
+            event: jmx
+          - attr: currentThreadCount
+            field: thread.pool.current
+            event: jmx
+          - attr: keepAliveCount
+            field: thread.pool.keep_alive.total
+            event: jmx
+          - attr: keepAliveTimeout
+            field: thread.pool.keep_alive.timeout.ms
+            event: jmx
+
+      - mbean: 'java.lang:type=Threading'
+        attributes:
+          - attr: TotalStartedThreadCount
+            field: started.total
+          - attr: CurrentThreadUserTime
+            field: user.time.ms
+          - attr: CurrentThreadCpuTime
+            field: cpu.time.ms
+          - attr: ThreadCount
+            field: total
+          - attr: PeakThreadCount
+            field: peak
+      - mbean: 'java.lang:type=Runtime'
+        attributes:
+         - attr: Uptime
+           field: uptime
+      - mbean: 'Catalina:name=*,type=GlobalRequestProcessor'
+        attributes:
+         - attr: requestCount
+           field: tomcat.requests.total
+         - attr: errorCount
+           field: tomcat.requests.errors.total
+         - attr: bytesReceived
+           field: tomcat.requests.bytes.received
+         - attr: bytesSent
+           field: tomcat.requests.bytes.sent
+      - mbean: 'Catalina:type=Manager,context=*,host=localhost'
+        attributes:
+         - attr: maxActive
+           field: tomcat.session.active.max
+         - attr: activeSessions
+           field: tomcat.session.active.current
+         - attr: expiredSessions
+           field: tomcat.session.expired
+         - attr: sessionCounter
+           field: tomcat.session.total
+         - attr: rejectedSessions
+           field: tomcat.session.rejected
+         - attr: duplicates
+           field: tomcat.session.duplicates
+#  - module: tomcat
+#    metricsets: ['threading', 'cache', 'memory', 'requests']
+#    period: 10s
+#    hosts: ['localhost:7070']
+#    path: "/jolokia/?ignoreErrors=true&canonicalNaming=false"
+  
+#processors:
+#  - add_host_metadata: ~
+#  - add_cloud_metadata: ~
+
+output.console:
+  pretty: true

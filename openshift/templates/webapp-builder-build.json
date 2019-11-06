@@ -1,0 +1,66 @@
+{
+  "kind": "Template",
+  "apiVersion": "v1",
+  "metadata": {},
+  "objects": [
+    {
+      "kind": "BuildConfig",
+      "apiVersion": "build.openshift.io/v1",
+      "metadata": {
+        "name": "webapp-builder",
+        "creationTimestamp": null,
+        "labels": {},
+        "annotations": {}
+      },
+      "spec": {
+        "triggers": [
+          {
+            "type": "ConfigChange"
+          }
+        ],
+        "source": {
+          "type": "Git",
+          "git": {
+            "uri": "https://github.com/cvarjao-o/showcase-java-web-app.git",
+            "ref": "master"
+          },
+          "contextDir": "openshift/images/_webapp"
+        },
+        "strategy": {
+          "type": "Docker",
+          "dockerStrategy": {
+            "from": {
+              "kind": "ImageStreamTag",
+              "name": "openjdk18-openshift:1.7-5"
+            },
+            "imageOptimizationPolicy": "SkipLayers"
+          }
+        },
+        "output": {
+          "to": {
+            "kind": "ImageStreamTag",
+            "name": "webapp-builder:latest"
+          }
+        },
+        "resources": {
+          "requests": {
+            "cpu": "1",
+            "memory": "1Gi"
+          },
+          "limits": {
+            "cpu": "2",
+            "memory": "2Gi"
+          }
+        },
+        "postCommit": {},
+        "nodeSelector": null
+      },
+      "status": {
+        "lastVersion": 0
+      }
+    }
+  ],
+  "labels": {
+    "template": "showcase-java-web-app"
+  }
+}

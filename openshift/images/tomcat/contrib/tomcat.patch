@@ -1,0 +1,281 @@
+diff --new-file -ru ../original/bin/setenv.sh ./bin/setenv.sh
+--- ../original/bin/setenv.sh	1969-12-31 16:00:00.000000000 -0800
++++ ./bin/setenv.sh	2019-11-05 20:19:37.000000000 -0800
+@@ -0,0 +1,5 @@
++CLASSPATH="$CATALINA_HOME/log4j/lib/*:$CATALINA_HOME/log4j/conf"
++# Reserve 10MB from the available memory
++CATALINA_OPTS="-Xmx40M $CATALINA_OPTS"
++CATALINA_OPTS="-XshowSettings:vm  -XX:MaxRAM=$(( $(cat /sys/fs/cgroup/memory/memory.limit_in_bytes) - ( 1024 * 10) )) -XX:MaxRAMPercentage=100.0 $CATALINA_OPTS"
++CATALINA_OPTS="-javaagent:$CATALINA_HOME/bin/jolokia-jvm-1.6.2-agent.jar=port=7070,host=localhost,discoveryEnabled=false $CATALINA_OPTS"
+diff --new-file -ru ../original/bin/unpack-webapps.sh ./bin/unpack-webapps.sh
+--- ../original/bin/unpack-webapps.sh	1969-12-31 16:00:00.000000000 -0800
++++ ./bin/unpack-webapps.sh	2019-11-03 21:29:23.000000000 -0800
+@@ -0,0 +1,9 @@
++#!/usr/bin/env bash
++set -e
++
++THIS_DIR="$(dirname $0)"
++cd "$THIS_DIR"
++cd ../
++find ./webapps/ -maxdepth 1 -name '*.war' | xargs basename -s .war | xargs -t -I {} mkdir 'webapps/{}'
++find ./webapps/ -maxdepth 1 -name '*.war' | xargs basename -s .war | xargs -t -I {} unzip -n -qq '/usr/local/tomcat/webapps/{}.war' -d 'webapps/{}'
++find ./webapps/ -maxdepth 1 -name '*.war' | xargs -t -I {} rm '{}'
+diff --new-file -ru ../original/conf/filebeat.yml ./conf/filebeat.yml
+--- ../original/conf/filebeat.yml	1969-12-31 16:00:00.000000000 -0800
++++ ./conf/filebeat.yml	2019-11-05 18:03:20.000000000 -0800
+@@ -0,0 +1,51 @@
++filebeat.inputs:
++  - type: log
++    enabled: true
++    paths:
++      - /usr/local/tomcat/logs/localhost_access_log.*.txt
++    fields:
++        tomcat: true
++        access_log: true
++    processors:
++      - script:
++          lang: javascript
++          id: access_log_parser
++          source: >
++            var regex = /^([^\s]+)\s\"([^\"]+)\"\s([^\s]+)\s([^\s]+)\s\"([^\"]+)\"\s\"(\w+)\s([^\s]+)\s([^\"]+)\"\s(\w+)\s(\w+)\s\"([^;]+)(;[^\"]+)?\"$/gm;
++            function process(event) {
++                var m;
++                while ((m = regex.exec(event.Get("message"))) !== null) {
++                  if (m.index === regex.lastIndex) {
++                      regex.lastIndex++;
++                  }
++                  event.Put('request_source_ip', m[1]);
++                  event.Put('request_client_ip', m[2]);
++                  event.Put('request_timestamp', m[5]);
++                  event.Put('request_verb', m[6]);
++                  event.Put('request_uri', m[7]);
++                  event.Put('request_version', m[8]);
++                  event.Put('response_code', m[9]);
++                  event.Put('response_size_in_bytes', m[10]);
++                  event.Put('response_contentType', m[11]);
++                }
++            }
++      - timestamp:
++          field: request_timestamp
++          layouts:
++            - '2006-01-02T15:04:05.999Z0700'
++          test:
++            - '2019-11-06T01:13:21.952+0000'
++      - drop_fields:
++          fields: [request_timestamp]
++  - type: log
++    enabled: true
++    encoding: utf-8
++    json.keys_under_root: true
++    json.message_key: message
++    json.add_error_key: true
++    paths:
++      - /usr/local/tomcat/logs/webapp.*.json
++    fields:
++        webapp: true
++output.console:
++  pretty: true
+diff --new-file -ru ../original/conf/metricbeat.yml ./conf/metricbeat.yml
+--- ../original/conf/metricbeat.yml	1969-12-31 16:00:00.000000000 -0800
++++ ./conf/metricbeat.yml	2019-11-05 22:34:38.000000000 -0800
+@@ -0,0 +1,99 @@
++logging.metrics.enabled: false
++metricbeat.modules:
++  - module: jolokia
++    metricsets: ["jmx"]
++    enabled: true
++    period: 10s
++    hosts: ["localhost:7070"]
++    namespace: "jmx"
++    path: "/jolokia"
++    http_method: 'GET'
++    jmx.mappings:
++      - mbean: 'java.lang:type=Memory'
++        attributes:
++         - attr: HeapMemoryUsage
++           field: memory.heap
++           event: jmx
++         - attr: NonHeapMemoryUsage
++           field: memory.other
++           event: jmx
++      - mbean: 'java.lang:name=*,type=MemoryPool'
++        attributes:
++         - attr: Name
++           field: memory.pool.name
++         - attr: Type
++           field: memory.pool.type
++         - attr: Usage
++           field: memory.pool.usage
++         - attr: PeakUsage
++           field: memory.pool.peakUsage
++      - mbean: 'Catalina:name=*,type=ThreadPool'
++        attributes:
++          - attr: currentThreadsBusy
++            field: thread.pool.busy
++            event: jmx
++          - attr: maxThreads
++            field: thread.pool.max
++            event: jmx
++          - attr: currentThreadCount
++            field: thread.pool.current
++            event: jmx
++          - attr: keepAliveCount
++            field: thread.pool.keep_alive.total
++            event: jmx
++          - attr: keepAliveTimeout
++            field: thread.pool.keep_alive.timeout.ms
++            event: jmx
++
++      - mbean: 'java.lang:type=Threading'
++        attributes:
++          - attr: TotalStartedThreadCount
++            field: started.total
++          - attr: CurrentThreadUserTime
++            field: user.time.ms
++          - attr: CurrentThreadCpuTime
++            field: cpu.time.ms
++          - attr: ThreadCount
++            field: total
++          - attr: PeakThreadCount
++            field: peak
++      - mbean: 'java.lang:type=Runtime'
++        attributes:
++         - attr: Uptime
++           field: uptime
++      - mbean: 'Catalina:name=*,type=GlobalRequestProcessor'
++        attributes:
++         - attr: requestCount
++           field: tomcat.requests.total
++         - attr: errorCount
++           field: tomcat.requests.errors.total
++         - attr: bytesReceived
++           field: tomcat.requests.bytes.received
++         - attr: bytesSent
++           field: tomcat.requests.bytes.sent
++      - mbean: 'Catalina:type=Manager,context=*,host=localhost'
++        attributes:
++         - attr: maxActive
++           field: tomcat.session.active.max
++         - attr: activeSessions
++           field: tomcat.session.active.current
++         - attr: expiredSessions
++           field: tomcat.session.expired
++         - attr: sessionCounter
++           field: tomcat.session.total
++         - attr: rejectedSessions
++           field: tomcat.session.rejected
++         - attr: duplicates
++           field: tomcat.session.duplicates
++#  - module: tomcat
++#    metricsets: ['threading', 'cache', 'memory', 'requests']
++#    period: 10s
++#    hosts: ['localhost:7070']
++#    path: "/jolokia/?ignoreErrors=true&canonicalNaming=false"
++  
++#processors:
++#  - add_host_metadata: ~
++#  - add_cloud_metadata: ~
++
++output.console:
++  pretty: true
+diff --new-file -ru ../original/conf/server.xml ./conf/server.xml
+--- ../original/conf/server.xml	2019-11-03 18:56:02.000000000 -0800
++++ ./conf/server.xml	2019-11-03 22:51:20.000000000 -0800
+@@ -113,7 +113,7 @@
+     -->
+ 
+     <!-- Define an AJP 1.3 Connector on port 8009 -->
+-    <Connector port="8009" protocol="AJP/1.3" redirectPort="8443" />
++    <!--<Connector port="8009" protocol="AJP/1.3" redirectPort="8443" />-->
+ 
+ 
+     <!-- An Engine represents the entry point (within Catalina) that processes
+@@ -130,9 +130,14 @@
+       <!--For clustering, please take a look at documentation at:
+           /docs/cluster-howto.html  (simple how to)
+           /docs/config/cluster.html (reference documentation) -->
++
+       <!--
+-      <Cluster className="org.apache.catalina.ha.tcp.SimpleTcpCluster"/>
+-      -->
++      <Cluster className="org.apache.catalina.ha.tcp.SimpleTcpCluster">
++          <Channel className="org.apache.catalina.tribes.group.GroupChannel">
++              <Membership className="org.apache.catalina.tribes.membership.cloud.CloudMembershipService"/>
++          </Channel>
++      </Cluster>
++     -->
+ 
+       <!-- Use the LockOutRealm to prevent attempts to guess user passwords
+            via a brute-force attack -->
+@@ -146,7 +151,7 @@
+       </Realm>
+ 
+       <Host name="localhost"  appBase="webapps"
+-            unpackWARs="true" autoDeploy="true">
++            unpackWARs="true" autoDeploy="false" deployOnStartup="true">
+ 
+         <!-- SingleSignOn valve, share authentication between web applications
+              Documentation at: /docs/config/valve.html -->
+@@ -154,12 +159,19 @@
+         <Valve className="org.apache.catalina.authenticator.SingleSignOn" />
+         -->
+ 
++        <Valve className="org.apache.catalina.valves.RemoteIpValve"
++               internalProxies=".*"
++               remoteIpHeader="x-forwarded-for"
++               proxiesHeader="x-forwarded-by"
++               protocolHeader="x-forwarded-proto" />
++
+         <!-- Access log processes all example.
+              Documentation at: /docs/config/valve.html
+              Note: The pattern used is equivalent to using pattern="common" -->
+         <Valve className="org.apache.catalina.valves.AccessLogValve" directory="logs"
++               buffered="false" encoding="UTF-8"
+                prefix="localhost_access_log" suffix=".txt"
+-               pattern="%h %l %u %t &quot;%r&quot; %s %b" />
++               pattern="%a &quot;%{x-forwarded-for}i&quot; %l %u &quot;%{yyyy-MM-dd'T'HH:mm:ss.SSSZ}t&quot; &quot;%r&quot; %s %b &quot;%{Content-Type}o&quot;" />
+ 
+       </Host>
+     </Engine>
+diff --new-file -ru ../original/conf/web.xml ./conf/web.xml
+--- ../original/conf/web.xml	2019-11-03 18:56:04.000000000 -0800
++++ ./conf/web.xml	2019-11-03 18:56:15.000000000 -0800
+@@ -631,7 +631,7 @@
+   <!-- created sessions by modifying the value below.                       -->
+ 
+     <session-config>
+-        <session-timeout>30</session-timeout>
++        <session-timeout>5</session-timeout>
+     </session-config>
+ 
+ 
+diff --new-file -ru ../original/log4j/conf/log4j2-tomcat.xml ./log4j/conf/log4j2-tomcat.xml
+--- ../original/log4j/conf/log4j2-tomcat.xml	1969-12-31 16:00:00.000000000 -0800
++++ ./log4j/conf/log4j2-tomcat.xml	2019-11-03 21:28:48.000000000 -0800
+@@ -0,0 +1,26 @@
++<Configuration status="error"> 
++    <Properties>
++        <Property name="layout.catalina"  value="%d [catalina ] [%-5p] - %m%n"/>
++        <Property name="layout.localhost" value="%d [localhost] [%-5p] - %m%n"/>
++    </Properties> 
++    <Appenders> 
++		<Console name="CATALINA">
++	      <PatternLayout>
++	        <Pattern>${layout.catalina}</Pattern>
++	      </PatternLayout>
++		</Console>
++		<Console name="LOCALHOST">
++	      <PatternLayout>
++	        <Pattern>${layout.localhost}</Pattern>
++	      </PatternLayout>
++		</Console>
++    </Appenders> 
++    <Loggers> 
++        <Root level="INFO"> 
++            <AppenderRef ref="CATALINA"/> 
++        </Root>
++        <Logger name="org.apache.catalina.core.ContainerBase.[Catalina].[localhost]" level="DEBUG" additivity="false"> 
++            <AppenderRef ref="LOCALHOST"/> 
++        </Logger> 
++    </Loggers> 
++</Configuration>

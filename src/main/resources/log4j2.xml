@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Configuration debug="true" trace="true">
+	<Properties>
+		<Property name="log4j.root.level" value="warn"/>
+		<Property name="log4j.app.level" value="warn"/>
+		<Property name="log4j.output.dir" value="/usr/local/tomcat/logs"/>
+	</Properties>
+	<Appenders>
+		<RollingRandomAccessFile name="FILE"
+			filePattern="${log4j.output.dir}/webapp.%d{yyyy-MM-dd}-%i.json">
+			<JsonLayout complete="false" compact="true" eventEol="true"/>
+			<Policies>
+				<OnStartupTriggeringPolicy />
+				<TimeBasedTriggeringPolicy />
+				<SizeBasedTriggeringPolicy size="100MB" />
+			</Policies>
+			<DirectWriteRolloverStrategy
+				maxFiles="9">
+				<Delete basePath="${log4j.output.dir}" maxDepth="1">
+					<IfAccumulatedFileCount exceeds="20" />
+				</Delete>
+			</DirectWriteRolloverStrategy>
+		</RollingRandomAccessFile>
+	</Appenders>
+	<Loggers>
+		<Root level="${log4j.root.level}">
+			<AppenderRef ref="FILE" />
+		</Root>
+		<Logger name="ca.bc.gov" level="${log4j.app.level}"
+			additivity="false">
+			<AppenderRef ref="FILE" />
+		</Logger>
+	</Loggers>
+</Configuration>

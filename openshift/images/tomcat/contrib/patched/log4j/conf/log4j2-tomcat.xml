@@ -1,0 +1,26 @@
+<Configuration status="error"> 
+    <Properties>
+        <Property name="layout.catalina"  value="%d [catalina ] [%-5p] - %m%n"/>
+        <Property name="layout.localhost" value="%d [localhost] [%-5p] - %m%n"/>
+    </Properties> 
+    <Appenders> 
+		<Console name="CATALINA">
+	      <PatternLayout>
+	        <Pattern>${layout.catalina}</Pattern>
+	      </PatternLayout>
+		</Console>
+		<Console name="LOCALHOST">
+	      <PatternLayout>
+	        <Pattern>${layout.localhost}</Pattern>
+	      </PatternLayout>
+		</Console>
+    </Appenders> 
+    <Loggers> 
+        <Root level="INFO"> 
+            <AppenderRef ref="CATALINA"/> 
+        </Root>
+        <Logger name="org.apache.catalina.core.ContainerBase.[Catalina].[localhost]" level="DEBUG" additivity="false"> 
+            <AppenderRef ref="LOCALHOST"/> 
+        </Logger> 
+    </Loggers> 
+</Configuration>

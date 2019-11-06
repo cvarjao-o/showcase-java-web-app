@@ -1,0 +1,234 @@
+{
+  "kind": "Template",
+  "apiVersion": "v1",
+  "metadata": {},
+  "objects": [
+    {
+      "kind": "DeploymentConfig",
+      "apiVersion": "apps.openshift.io/v1",
+      "metadata": {
+        "name": "showcase-java-web-app",
+        "creationTimestamp": null,
+        "labels": {},
+        "annotations": {}
+      },
+      "spec": {
+        "strategy": {
+          "resources": {}
+        },
+        "triggers": [
+          {
+            "type": "ConfigChange"
+          },
+          {
+            "type": "ImageChange",
+            "imageChangeParams": {
+              "automatic": true,
+              "containerNames": [
+                "showcase-java-web-app",
+                "copy-filebeat-conf",
+                "filebeat",
+                "metricbeat"
+              ],
+              "from": {
+                "kind": "ImageStreamTag",
+                "namespace": "csnr-devops-lab-deploy",
+                "name": "showcase-java-web-app-final:latest"
+              }
+            }
+          }
+        ],
+        "replicas": 1,
+        "test": false,
+        "selector": {
+          "deploymentconfig": "showcase-java-web-app"
+        },
+        "template": {
+          "metadata": {
+            "creationTimestamp": null,
+            "labels": {
+              "deploymentconfig": "showcase-java-web-app"
+            },
+            "annotations": {}
+          },
+          "spec": {
+            "containers": [
+              {
+                "name": "showcase-java-web-app",
+                "image": "docker-registry.default.svc:5000/csnr-devops-lab-deploy/showcase-java-web-app-final:latest",
+                "ports": [
+                  {
+                    "containerPort": 8080,
+                    "protocol": "TCP"
+                  },
+                  {
+                    "name": "jolokia",
+                    "protocol": "TCP",
+                    "containerPort": 7070
+                  }
+                ],
+                "resources": {
+                  "requests": {
+                    "cpu": "50m",
+                    "memory": "192Mi"
+                  },
+                  "limits": {
+                    "memory": "256Mi",
+                    "cpu": "200m"
+                  }
+                },
+                "imagePullPolicy": "Always",
+                "volumeMounts": [
+                  {
+                    "name": "access-logs",
+                    "mountPath": "/usr/local/tomcat/logs"
+                  }
+                ]
+              },
+              {
+                "name": "filebeat",
+                "image": " ",
+                "command": [
+                  "/usr/local/tomcat/filebeat/filebeat",
+                  "run",
+                  "--e",
+                  "-c",
+                  "/usr/local/tomcat/conf/filebeat.yml",
+                  "-E",
+                  "output.console.enabled=false",
+                  "-E",
+                  "output.elasticsearch.hosts=[https://security-master:9200]",
+                  "-E",
+                  "output.elasticsearch.username=elastic",
+                  "-E",
+                  "output.elasticsearch.password=cEFtS5H5Hxv7MNotplorGk",
+                  "-E",
+                  "output.elasticsearch.ssl.verification_mode=none"
+                ],
+                "imagePullPolicy": "Always",
+                "volumeMounts": [
+                  {
+                    "name": "access-logs",
+                    "mountPath": "/usr/local/tomcat/logs"
+                  }
+                ]
+              },
+              {
+                "name": "metricbeat",
+                "image": " ",
+                "command": [
+                  "/usr/local/tomcat/metricbeat/metricbeat",
+                  "run",
+                  "--e",
+                  "-c",
+                  "/usr/local/tomcat/conf/metricbeat.yml",
+                  "-E",
+                  "output.console.enabled=false",
+                  "-E",
+                  "output.elasticsearch.hosts=[https://security-master:9200]",
+                  "-E",
+                  "output.elasticsearch.username=elastic",
+                  "-E",
+                  "output.elasticsearch.password=cEFtS5H5Hxv7MNotplorGk",
+                  "-E",
+                  "output.elasticsearch.ssl.verification_mode=none"
+                ],
+                "imagePullPolicy": "Always"
+              }
+            ],
+            "volumes": [
+              {
+                "name": "access-logs",
+                "emptyDir": {}
+              },
+              {
+                "name": "conf",
+                "emptyDir": {}
+              }
+            ],
+            "initContainers": [
+              {
+                "name": "copy-filebeat-conf",
+                "image": " ",
+                "command": [
+                  "cp",
+                  "/usr/local/tomcat/conf/filebeat.yml",
+                  "/mnt/conf/"
+                ],
+                "volumeMounts": [
+                  {
+                    "name": "conf",
+                    "mountPath": "/mnt/conf"
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      },
+      "status": {
+        "latestVersion": 0,
+        "observedGeneration": 0,
+        "replicas": 0,
+        "updatedReplicas": 0,
+        "availableReplicas": 0,
+        "unavailableReplicas": 0
+      }
+    },
+    {
+      "kind": "Service",
+      "apiVersion": "v1",
+      "metadata": {
+        "name": "showcase-java-web-app",
+        "creationTimestamp": null,
+        "labels": {},
+        "annotations": {}
+      },
+      "spec": {
+        "ports": [
+          {
+            "name": "8080-tcp",
+            "protocol": "TCP",
+            "port": 8080,
+            "targetPort": 8080
+          }
+        ],
+        "selector": {
+          "deploymentconfig": "showcase-java-web-app"
+        }
+      },
+      "status": {
+        "loadBalancer": {}
+      }
+    },
+    {
+      "kind": "Route",
+      "apiVersion": "route.openshift.io/v1",
+      "metadata": {
+        "name": "showcase-java-web-app",
+        "creationTimestamp": null,
+        "labels": {}
+      },
+      "spec": {
+        "host": "",
+        "to": {
+          "kind": "Service",
+          "name": "showcase-java-web-app",
+          "weight": 100
+        },
+        "port": {
+          "targetPort": "8080-tcp"
+        },
+        "tls": {
+          "termination": "edge"
+        }
+      },
+      "status": {
+        "ingress": null
+      }
+    }
+  ],
+  "labels": {
+    "template": "showcase-java-web-app"
+  }
+}

@@ -1,0 +1,10 @@
+**/.classpath
+**/.DS_Store
+**/.project
+**/.settings/
+**/*.tar.gz
+src/tomcat/lib/*
+src/tomcat/webapps/*
+target/
+src/beats/metricbeat-7.4.2-darwin-x86_64/
+.factorypath

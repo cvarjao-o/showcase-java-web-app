@@ -1,0 +1,51 @@
+filebeat.inputs:
+  - type: log
+    enabled: true
+    paths:
+      - /usr/local/tomcat/logs/localhost_access_log.*.txt
+    fields:
+        tomcat: true
+        access_log: true
+    processors:
+      - script:
+          lang: javascript
+          id: access_log_parser
+          source: >
+            var regex = /^([^\s]+)\s\"([^\"]+)\"\s([^\s]+)\s([^\s]+)\s\"([^\"]+)\"\s\"(\w+)\s([^\s]+)\s([^\"]+)\"\s(\w+)\s(\w+)\s\"([^;]+)(;[^\"]+)?\"$/gm;
+            function process(event) {
+                var m;
+                while ((m = regex.exec(event.Get("message"))) !== null) {
+                  if (m.index === regex.lastIndex) {
+                      regex.lastIndex++;
+                  }
+                  event.Put('request_source_ip', m[1]);
+                  event.Put('request_client_ip', m[2]);
+                  event.Put('request_timestamp', m[5]);
+                  event.Put('request_verb', m[6]);
+                  event.Put('request_uri', m[7]);
+                  event.Put('request_version', m[8]);
+                  event.Put('response_code', m[9]);
+                  event.Put('response_size_in_bytes', m[10]);
+                  event.Put('response_contentType', m[11]);
+                }
+            }
+      - timestamp:
+          field: request_timestamp
+          layouts:
+            - '2006-01-02T15:04:05.999Z0700'
+          test:
+            - '2019-11-06T01:13:21.952+0000'
+      - drop_fields:
+          fields: [request_timestamp]
+  - type: log
+    enabled: true
+    encoding: utf-8
+    json.keys_under_root: true
+    json.message_key: message
+    json.add_error_key: true
+    paths:
+      - /usr/local/tomcat/logs/webapp.*.json
+    fields:
+        webapp: true
+output.console:
+  pretty: true
