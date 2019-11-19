@@ -131,13 +131,14 @@
           /docs/cluster-howto.html  (simple how to)
           /docs/config/cluster.html (reference documentation) -->
 
-      <!--
-      <Cluster className="org.apache.catalina.ha.tcp.SimpleTcpCluster">
+      <!-- Reference: https://tomcat.apache.org/tomcat-9.0-doc/cluster-howto.html -->
+      <Cluster className="org.apache.catalina.ha.tcp.SimpleTcpCluster" channelSendOptions="6">
           <Channel className="org.apache.catalina.tribes.group.GroupChannel">
               <Membership className="org.apache.catalina.tribes.membership.cloud.CloudMembershipService"/>
+              <Interceptor className="org.apache.catalina.tribes.group.interceptors.ThroughputInterceptor"/>
           </Channel>
+          <ClusterListener className="org.apache.catalina.ha.session.ClusterSessionListener"/>
       </Cluster>
-     -->
 
       <!-- Use the LockOutRealm to prevent attempts to guess user passwords
            via a brute-force attack -->

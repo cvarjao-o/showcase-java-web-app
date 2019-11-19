@@ -30,8 +30,8 @@ function getImageStreamImageBySourceChecksum {
   
   #echo "imageStreamImageName=${imageStreamImageName}"
   #echo "sourceChecksum=${sourceChecksum}"
-  oc get "is/$imageStreamImageName" -o json | jq -rM '.status.tags[].items[].image' | while read -r line ; do
-    local checksum=$(oc get "imagestreamimage/${imageStreamImageName}@${line}" -o json | jq -rM '.image.dockerImageMetadata.Config.Labels["input.source.checksum"]')
+  _oc get "is/$imageStreamImageName" -o json | jq -rM '.status.tags[].items[].image' | while read -r line ; do
+    local checksum=$(_oc get "imagestreamimage/${imageStreamImageName}@${line}" -o json | jq -rM '.image.dockerImageMetadata.Config.Labels["input.source.checksum"]')
     #echo "'$checksum' == '$sourceChecksum' (${imageStreamImageName}@${line})?"
     if [ "$checksum" == "$sourceChecksum" ]; then
       echo "imagestreamimage/${imageStreamImageName}@${line}"
@@ -44,7 +44,7 @@ function getImageStreamImageBySourceChecksum {
 function _start_build_from_archive {
   local buildConfigName="$1"
   local sourceArchiveFile="$2"
-  local buildConfigOutput="$(oc get "BuildConfig/$buildConfigName" -o json | jq -rcM '.spec.output.to')"
+  local buildConfigOutput="$(_oc get "BuildConfig/$buildConfigName" -o json | jq -rcM '.spec.output.to')"
   local outputImageStreamName="$(jq -r '.name' <<< "$buildConfigOutput" | cut -d':' -f1)"
   local sourceArchiveFileChecksum="$(shasum -b $sourceArchiveFile | cut -d' ' -f1)"
 
@@ -92,6 +92,9 @@ function convert_list_to_build_template {
   _jq --arg name "$2" '.kind = "Template" | .objects = .items | del(.items) | .labels = {"template": $name}' "$1"
 }
 
+echo "Updating tomcat patch file"
+./openshift/images/tomcat/create-patch.sh
+
 echo "Creating template: webapp-builder-build.json"
 _oc new-build . --context-dir=openshift/images/_webapp --name=webapp-builder --dry-run -o json > openshift/templates/webapp-builder-build.json
 convert_list_to_build_template openshift/templates/webapp-builder-build.json 'showcase-java-web-app'
@@ -124,7 +127,7 @@ _archive '--file=source.tar.gz' --exclude=openshift/images/tomcat/contrib/origin
 _start_build_from_archive showcase-tomcat source.tar.gz
 
 echo "Creating template: webapp-build-final.json"
-oc new-build --image-stream=showcase-tomcat:latest --name=showcase-java-web-app-final --source-image=showcase-java-web-app:latest --source-image-path=/deployments:. --to=showcase-java-web-app-final:latest --strategy=docker -D $'FROM showcase-tomcat:latest\nCOPY deployments/showcase-java-web-app.war /usr/local/tomcat/webapps/ROOT.war\nRUN find /usr/local/tomcat/webapps/ -maxdepth 1 -name "*.war" | xargs basename -s .war | xargs -t -I {} mkdir "/usr/local/tomcat/webapps/{}" && \ \n  find /usr/local/tomcat/webapps/ -maxdepth 1 -name "*.war" | xargs basename -s .war | xargs -t -I {} unzip -n -qq "/usr/local/tomcat/webapps/{}.war" -d "/usr/local/tomcat/webapps/{}" && \ \n  find /usr/local/tomcat/webapps/ -maxdepth 1 -name "*.war" | xargs -t -I {} rm "{}" && \ \n  ls -la /usr/local/tomcat/webapps/ROOT/' --dry-run -o json > openshift/templates/webapp-build-final.json
+_oc new-build --image-stream=showcase-tomcat:latest --name=showcase-java-web-app-final --source-image=showcase-java-web-app:latest --source-image-path=/deployments:. --to=showcase-java-web-app-final:latest --strategy=docker -D $'FROM showcase-tomcat:latest\nCOPY deployments/showcase-java-web-app.war /usr/local/tomcat/webapps/ROOT.war\nRUN find /usr/local/tomcat/webapps/ -maxdepth 1 -name "*.war" | xargs basename -s .war | xargs -t -I {} mkdir "/usr/local/tomcat/webapps/{}" && \ \n  find /usr/local/tomcat/webapps/ -maxdepth 1 -name "*.war" | xargs basename -s .war | xargs -t -I {} unzip -n -qq "/usr/local/tomcat/webapps/{}.war" -d "/usr/local/tomcat/webapps/{}" && \ \n  find /usr/local/tomcat/webapps/ -maxdepth 1 -name "*.war" | xargs -t -I {} rm "{}" && \ \n  ls -la /usr/local/tomcat/webapps/ROOT/' --dry-run -o json > openshift/templates/webapp-build-final.json
 convert_list_to_build_template openshift/templates/webapp-build-final.json 'showcase-java-web-app'
 
 echo "Applying template: webapp-build-final.json"

@@ -22,8 +22,9 @@ diff --new-file -ru ../original/bin/unpack-webapps.sh ./bin/unpack-webapps.sh
 +find ./webapps/ -maxdepth 1 -name '*.war' | xargs -t -I {} rm '{}'
 diff --new-file -ru ../original/conf/filebeat.yml ./conf/filebeat.yml
 --- ../original/conf/filebeat.yml	1969-12-31 16:00:00.000000000 -0800
-+++ ./conf/filebeat.yml	2019-11-05 18:03:20.000000000 -0800
-@@ -0,0 +1,51 @@
++++ ./conf/filebeat.yml	2019-11-13 16:20:53.000000000 -0800
+@@ -0,0 +1,94 @@
++logging.metrics.enabled: false
 +filebeat.inputs:
 +  - type: log
 +    enabled: true
@@ -44,25 +45,42 @@ diff --new-file -ru ../original/conf/filebeat.yml ./conf/filebeat.yml
 +                  if (m.index === regex.lastIndex) {
 +                      regex.lastIndex++;
 +                  }
-+                  event.Put('request_source_ip', m[1]);
-+                  event.Put('request_client_ip', m[2]);
-+                  event.Put('request_timestamp', m[5]);
-+                  event.Put('request_verb', m[6]);
-+                  event.Put('request_uri', m[7]);
-+                  event.Put('request_version', m[8]);
-+                  event.Put('response_code', m[9]);
-+                  event.Put('response_size_in_bytes', m[10]);
-+                  event.Put('response_contentType', m[11]);
++                  var requestDateTime = Date.parse(m[5]);
++                  event.Put('proxy.ip', m[1]);
++                  event.Put('client.ip', m[2]);
++                  event.Put('http.request.timestamp', m[5]);
++                  event.Put('http.request.method', m[6]);
++                  event.Put('http.request.path', (m[7].match(/^[^?]+/gm) || [''])[0]);
++                  event.Put('http.request.queryString', (m[7].match(/\?.+$/gm)[0]) || [''][0]);
++                  event.Put('http.request.uri', m[7]);
++                  event.Put('http.version', m[8]);
++                  event.Put('http.response.status_code', m[9]);
++                  event.Put('http.response.bytes', m[10]);
++                  event.Put('http.response.contentType', m[11]);
++                  //event.Put('request.timestamp.day_of_week', requestDateTime.getDay());
++                  //event.Put('request.timestamp.hour_of_day', requestDateTime.getHours())
 +                }
 +            }
++#      - geoip:
++#          field: http.request.client.ip
++#          target_field: http.request.client.geo
++#          ignore_missing: true
++#      - geoip:
++#          field: http.request.source.ip
++#          target_field: http.request.source.geo
++#          ignore_missing: true
++#      - fingerprint:
++#          fields: ["http.request.client.ip"]
++#          target_field: ["http.request.client.fingerprint"]
 +      - timestamp:
-+          field: request_timestamp
++          field: request.timestamp
 +          layouts:
 +            - '2006-01-02T15:04:05.999Z0700'
 +          test:
 +            - '2019-11-06T01:13:21.952+0000'
 +      - drop_fields:
-+          fields: [request_timestamp]
++          fields: [request.timestamp]
++      - add_locale: ~
 +  - type: log
 +    enabled: true
 +    encoding: utf-8
@@ -73,12 +91,37 @@ diff --new-file -ru ../original/conf/filebeat.yml ./conf/filebeat.yml
 +      - /usr/local/tomcat/logs/webapp.*.json
 +    fields:
 +        webapp: true
++    processors:
++      - add_locale: ~
++      - add_fields:
++          target: ''
++          fields:
++            level: 'access'
++
++processors:
++- add_fields:
++    target: 'app'
++    fields:
++      name: 'myapp'
++      env: 'dev'
++
 +output.console:
 +  pretty: true
++
++setup.ilm.enabled: true
++setup.ilm.rollover_alias: "logs-dev-myapp"
++setup.ilm.pattern: "{now/d}-000001"
++setup.ilm.policy_name: "filebeat-%{[agent.version]}"
++
++setup.template.name: "filebeat-%{[agent.version]}"
++setup.template.pattern: "logs-dev-myapp-*"
++
++output.elasticsearch:
++  index: "logs-dev-myapp-%{[level]}-%{[agent.version]}-%{+yyyy.MM.dd}"
 diff --new-file -ru ../original/conf/metricbeat.yml ./conf/metricbeat.yml
 --- ../original/conf/metricbeat.yml	1969-12-31 16:00:00.000000000 -0800
-+++ ./conf/metricbeat.yml	2019-11-05 22:34:38.000000000 -0800
-@@ -0,0 +1,99 @@
++++ ./conf/metricbeat.yml	2019-11-13 16:22:29.000000000 -0800
+@@ -0,0 +1,124 @@
 +logging.metrics.enabled: false
 +metricbeat.modules:
 +  - module: jolokia
@@ -90,14 +133,22 @@ diff --new-file -ru ../original/conf/metricbeat.yml ./conf/metricbeat.yml
 +    path: "/jolokia"
 +    http_method: 'GET'
 +    jmx.mappings:
++      - mbean: 'java.lang:type=OperatingSystem'
++        attributes:
++         - attr: ProcessCpuLoad
++           field: process.cpu.load
++         - attr: ProcessCpuTime
++           field: process.cpu.time
++         - attr: SystemCpuLoad
++           field: system.cpu.load
++         - attr: SystemLoadAverage
++           field: system.cpu.load.avg
 +      - mbean: 'java.lang:type=Memory'
 +        attributes:
 +         - attr: HeapMemoryUsage
 +           field: memory.heap
-+           event: jmx
 +         - attr: NonHeapMemoryUsage
 +           field: memory.other
-+           event: jmx
 +      - mbean: 'java.lang:name=*,type=MemoryPool'
 +        attributes:
 +         - attr: Name
@@ -172,15 +223,32 @@ diff --new-file -ru ../original/conf/metricbeat.yml ./conf/metricbeat.yml
 +#    hosts: ['localhost:7070']
 +#    path: "/jolokia/?ignoreErrors=true&canonicalNaming=false"
 +  
++processors:
++  - add_fields:
++      target: 'app'
++      fields:
++        name: 'myapp'
++        env: 'dev'
++
 +#processors:
 +#  - add_host_metadata: ~
 +#  - add_cloud_metadata: ~
 +
 +output.console:
 +  pretty: true
++
++setup.ilm.enabled: auto
++setup.ilm.rollover_alias: "metrics-dev-myapp"
++setup.ilm.pattern: "{now/d}-000001" 
++setup.ilm.policy_name: "metricbeat-%{[agent.version]}"
++
++#setup.template.enabled: false
++setup.template.name: "metricbeat-%{[agent.version]}"
++setup.template.pattern: "metrics-dev-myapp-*"
++#output.elasticsearch.index: "metrics-dev-myapp-%{[agent.version]}-%{+yyyy.MM.dd}"
 diff --new-file -ru ../original/conf/server.xml ./conf/server.xml
 --- ../original/conf/server.xml	2019-11-03 18:56:02.000000000 -0800
-+++ ./conf/server.xml	2019-11-03 22:51:20.000000000 -0800
++++ ./conf/server.xml	2019-11-19 11:19:06.000000000 -0800
 @@ -113,7 +113,7 @@
      -->
  
@@ -190,24 +258,26 @@ diff --new-file -ru ../original/conf/server.xml ./conf/server.xml
  
  
      <!-- An Engine represents the entry point (within Catalina) that processes
-@@ -130,9 +130,14 @@
+@@ -130,9 +130,15 @@
        <!--For clustering, please take a look at documentation at:
            /docs/cluster-howto.html  (simple how to)
            /docs/config/cluster.html (reference documentation) -->
-+
-       <!--
+-      <!--
 -      <Cluster className="org.apache.catalina.ha.tcp.SimpleTcpCluster"/>
 -      -->
-+      <Cluster className="org.apache.catalina.ha.tcp.SimpleTcpCluster">
++
++      <!-- Reference: https://tomcat.apache.org/tomcat-9.0-doc/cluster-howto.html -->
++      <Cluster className="org.apache.catalina.ha.tcp.SimpleTcpCluster" channelSendOptions="6">
 +          <Channel className="org.apache.catalina.tribes.group.GroupChannel">
 +              <Membership className="org.apache.catalina.tribes.membership.cloud.CloudMembershipService"/>
++              <Interceptor className="org.apache.catalina.tribes.group.interceptors.ThroughputInterceptor"/>
 +          </Channel>
++          <ClusterListener className="org.apache.catalina.ha.session.ClusterSessionListener"/>
 +      </Cluster>
-+     -->
  
        <!-- Use the LockOutRealm to prevent attempts to guess user passwords
             via a brute-force attack -->
-@@ -146,7 +151,7 @@
+@@ -146,7 +152,7 @@
        </Realm>
  
        <Host name="localhost"  appBase="webapps"
@@ -216,7 +286,7 @@ diff --new-file -ru ../original/conf/server.xml ./conf/server.xml
  
          <!-- SingleSignOn valve, share authentication between web applications
               Documentation at: /docs/config/valve.html -->
-@@ -154,12 +159,19 @@
+@@ -154,12 +160,19 @@
          <Valve className="org.apache.catalina.authenticator.SingleSignOn" />
          -->
  

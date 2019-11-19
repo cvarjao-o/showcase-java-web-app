@@ -33,4 +33,5 @@ RUN set -xe && \
     chmod g+rw /usr/local/tomcat/metricbeat/logs && \
     chgrp -R 0 /usr/local/tomcat/metricbeat && \
     curl -sSL https://repo1.maven.org/maven2/org/jolokia/jolokia-jvm/1.6.2/jolokia-jvm-1.6.2-agent.jar -o /usr/local/tomcat/bin/jolokia-jvm-1.6.2-agent.jar && \
+    curl -sSL https://oss.sonatype.org/content/repositories/public/io/hawt/hawtio-default/2.7.1/hawtio-default-2.7.1.war -o /usr/local/tomcat/webapps/hawtio.war && \
     apt-get remove -qq -y --purge patch && apt-get clean && set +x && rm -rf /var/lib/apt/lists/* && rm -rf /tmp/*

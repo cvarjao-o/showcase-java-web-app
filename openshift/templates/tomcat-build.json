@@ -22,7 +22,7 @@
           "type": "Git",
           "git": {
             "uri": "https://github.com/cvarjao-o/showcase-java-web-app.git",
-            "ref": "master"
+            "ref": "release/0.0.1"
           },
           "contextDir": "openshift/images/tomcat"
         },

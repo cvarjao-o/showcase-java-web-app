@@ -1,3 +1,4 @@
+logging.metrics.enabled: false
 filebeat.inputs:
   - type: log
     enabled: true
@@ -18,25 +19,42 @@ filebeat.inputs:
                   if (m.index === regex.lastIndex) {
                       regex.lastIndex++;
                   }
-                  event.Put('request_source_ip', m[1]);
-                  event.Put('request_client_ip', m[2]);
-                  event.Put('request_timestamp', m[5]);
-                  event.Put('request_verb', m[6]);
-                  event.Put('request_uri', m[7]);
-                  event.Put('request_version', m[8]);
-                  event.Put('response_code', m[9]);
-                  event.Put('response_size_in_bytes', m[10]);
-                  event.Put('response_contentType', m[11]);
+                  var requestDateTime = Date.parse(m[5]);
+                  event.Put('proxy.ip', m[1]);
+                  event.Put('client.ip', m[2]);
+                  event.Put('http.request.timestamp', m[5]);
+                  event.Put('http.request.method', m[6]);
+                  event.Put('http.request.path', (m[7].match(/^[^?]+/gm) || [''])[0]);
+                  event.Put('http.request.queryString', (m[7].match(/\?.+$/gm)[0]) || [''][0]);
+                  event.Put('http.request.uri', m[7]);
+                  event.Put('http.version', m[8]);
+                  event.Put('http.response.status_code', m[9]);
+                  event.Put('http.response.bytes', m[10]);
+                  event.Put('http.response.contentType', m[11]);
+                  //event.Put('request.timestamp.day_of_week', requestDateTime.getDay());
+                  //event.Put('request.timestamp.hour_of_day', requestDateTime.getHours())
                 }
             }
+#      - geoip:
+#          field: http.request.client.ip
+#          target_field: http.request.client.geo
+#          ignore_missing: true
+#      - geoip:
+#          field: http.request.source.ip
+#          target_field: http.request.source.geo
+#          ignore_missing: true
+#      - fingerprint:
+#          fields: ["http.request.client.ip"]
+#          target_field: ["http.request.client.fingerprint"]
       - timestamp:
-          field: request_timestamp
+          field: request.timestamp
           layouts:
             - '2006-01-02T15:04:05.999Z0700'
           test:
             - '2019-11-06T01:13:21.952+0000'
       - drop_fields:
-          fields: [request_timestamp]
+          fields: [request.timestamp]
+      - add_locale: ~
   - type: log
     enabled: true
     encoding: utf-8
@@ -47,5 +65,30 @@ filebeat.inputs:
       - /usr/local/tomcat/logs/webapp.*.json
     fields:
         webapp: true
+    processors:
+      - add_locale: ~
+      - add_fields:
+          target: ''
+          fields:
+            level: 'access'
+
+processors:
+- add_fields:
+    target: 'app'
+    fields:
+      name: 'myapp'
+      env: 'dev'
+
 output.console:
   pretty: true
+
+setup.ilm.enabled: true
+setup.ilm.rollover_alias: "logs-dev-myapp"
+setup.ilm.pattern: "{now/d}-000001"
+setup.ilm.policy_name: "filebeat-%{[agent.version]}"
+
+setup.template.name: "filebeat-%{[agent.version]}"
+setup.template.pattern: "logs-dev-myapp-*"
+
+output.elasticsearch:
+  index: "logs-dev-myapp-%{[level]}-%{[agent.version]}-%{+yyyy.MM.dd}"

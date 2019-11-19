@@ -9,14 +9,22 @@ metricbeat.modules:
     path: "/jolokia"
     http_method: 'GET'
     jmx.mappings:
+      - mbean: 'java.lang:type=OperatingSystem'
+        attributes:
+         - attr: ProcessCpuLoad
+           field: process.cpu.load
+         - attr: ProcessCpuTime
+           field: process.cpu.time
+         - attr: SystemCpuLoad
+           field: system.cpu.load
+         - attr: SystemLoadAverage
+           field: system.cpu.load.avg
       - mbean: 'java.lang:type=Memory'
         attributes:
          - attr: HeapMemoryUsage
            field: memory.heap
-           event: jmx
          - attr: NonHeapMemoryUsage
            field: memory.other
-           event: jmx
       - mbean: 'java.lang:name=*,type=MemoryPool'
         attributes:
          - attr: Name
@@ -91,9 +99,26 @@ metricbeat.modules:
 #    hosts: ['localhost:7070']
 #    path: "/jolokia/?ignoreErrors=true&canonicalNaming=false"
   
+processors:
+  - add_fields:
+      target: 'app'
+      fields:
+        name: 'myapp'
+        env: 'dev'
+
 #processors:
 #  - add_host_metadata: ~
 #  - add_cloud_metadata: ~
 
 output.console:
   pretty: true
+
+setup.ilm.enabled: auto
+setup.ilm.rollover_alias: "metrics-dev-myapp"
+setup.ilm.pattern: "{now/d}-000001" 
+setup.ilm.policy_name: "metricbeat-%{[agent.version]}"
+
+#setup.template.enabled: false
+setup.template.name: "metricbeat-%{[agent.version]}"
+setup.template.pattern: "metrics-dev-myapp-*"
+#output.elasticsearch.index: "metrics-dev-myapp-%{[agent.version]}-%{+yyyy.MM.dd}"
