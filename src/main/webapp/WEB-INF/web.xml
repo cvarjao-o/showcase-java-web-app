@@ -4,6 +4,7 @@
    xsi:schemaLocation="http://xmlns.jcp.org/xml/ns/javaee 
    http://xmlns.jcp.org/xml/ns/javaee/web-app_4_0.xsd">
   <display-name>Archetype Created Web Application</display-name>
+  <distributable/>
   <servlet>
   	<servlet-name>Logging</servlet-name>
   	<servlet-class>ca.bc.gov.showcase.java.web.Logging</servlet-class>

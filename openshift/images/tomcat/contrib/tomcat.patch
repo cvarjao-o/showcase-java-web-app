@@ -22,8 +22,8 @@ diff --new-file -ru ../original/bin/unpack-webapps.sh ./bin/unpack-webapps.sh
 +find ./webapps/ -maxdepth 1 -name '*.war' | xargs -t -I {} rm '{}'
 diff --new-file -ru ../original/conf/filebeat.yml ./conf/filebeat.yml
 --- ../original/conf/filebeat.yml	1969-12-31 16:00:00.000000000 -0800
-+++ ./conf/filebeat.yml	2019-11-13 16:20:53.000000000 -0800
-@@ -0,0 +1,94 @@
++++ ./conf/filebeat.yml	2019-11-21 19:31:29.000000000 -0800
+@@ -0,0 +1,110 @@
 +logging.metrics.enabled: false
 +filebeat.inputs:
 +  - type: log
@@ -50,8 +50,8 @@ diff --new-file -ru ../original/conf/filebeat.yml ./conf/filebeat.yml
 +                  event.Put('client.ip', m[2]);
 +                  event.Put('http.request.timestamp', m[5]);
 +                  event.Put('http.request.method', m[6]);
-+                  event.Put('http.request.path', (m[7].match(/^[^?]+/gm) || [''])[0]);
-+                  event.Put('http.request.queryString', (m[7].match(/\?.+$/gm)[0]) || [''][0]);
++                  event.Put('http.request.path', [].concat(m[7].match(/^[^?]+/gm) || [''], [''])[0]);
++                  event.Put('http.request.queryString', [].concat(m[7].match(/\?.+$/gm) || [''], [''])[0]);
 +                  event.Put('http.request.uri', m[7]);
 +                  event.Put('http.version', m[8]);
 +                  event.Put('http.response.status_code', m[9]);
@@ -81,6 +81,10 @@ diff --new-file -ru ../original/conf/filebeat.yml ./conf/filebeat.yml
 +      - drop_fields:
 +          fields: [request.timestamp]
 +      - add_locale: ~
++      - add_fields:
++          target: ''
++          fields:
++            level: 'access'
 +  - type: log
 +    enabled: true
 +    encoding: utf-8
@@ -88,7 +92,20 @@ diff --new-file -ru ../original/conf/filebeat.yml ./conf/filebeat.yml
 +    json.message_key: message
 +    json.add_error_key: true
 +    paths:
-+      - /usr/local/tomcat/logs/webapp.*.json
++      - /usr/local/tomcat/logs/webapp/webapp.*.json
++    fields:
++        webapp: true
++    processors:
++      - add_locale: ~
++
++  - type: log
++    enabled: true
++    encoding: utf-8
++    json.keys_under_root: true
++    json.message_key: message
++    json.add_error_key: true
++    paths:
++      - /usr/local/tomcat/logs/bam/bam.*.json
 +    fields:
 +        webapp: true
 +    processors:
@@ -96,8 +113,7 @@ diff --new-file -ru ../original/conf/filebeat.yml ./conf/filebeat.yml
 +      - add_fields:
 +          target: ''
 +          fields:
-+            level: 'access'
-+
++            bam: 'true'
 +processors:
 +- add_fields:
 +    target: 'app'
@@ -248,7 +264,7 @@ diff --new-file -ru ../original/conf/metricbeat.yml ./conf/metricbeat.yml
 +#output.elasticsearch.index: "metrics-dev-myapp-%{[agent.version]}-%{+yyyy.MM.dd}"
 diff --new-file -ru ../original/conf/server.xml ./conf/server.xml
 --- ../original/conf/server.xml	2019-11-03 18:56:02.000000000 -0800
-+++ ./conf/server.xml	2019-11-19 11:19:06.000000000 -0800
++++ ./conf/server.xml	2019-11-21 20:23:11.000000000 -0800
 @@ -113,7 +113,7 @@
      -->
  

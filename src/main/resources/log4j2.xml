@@ -7,8 +7,8 @@
 	</Properties>
 	<Appenders>
 		<RollingRandomAccessFile name="FILE"
-			filePattern="${log4j.output.dir}/webapp.%d{yyyy-MM-dd}-%i.json">
-			<JsonLayout complete="false" compact="true" eventEol="true"/>
+			filePattern="${log4j.output.dir}/webapp/webapp.%d{yyyy-MM-dd}-%i.json">
+			<JsonLayout complete="false" compact="true" eventEol="true" locationInfo="true" properties="true" includeStacktrace="true"/>
 			<Policies>
 				<OnStartupTriggeringPolicy />
 				<TimeBasedTriggeringPolicy />
@@ -16,7 +16,22 @@
 			</Policies>
 			<DirectWriteRolloverStrategy
 				maxFiles="9">
-				<Delete basePath="${log4j.output.dir}" maxDepth="1">
+				<Delete basePath="${log4j.output.dir}/webapp" maxDepth="1">
+					<IfAccumulatedFileCount exceeds="20" />
+				</Delete>
+			</DirectWriteRolloverStrategy>
+		</RollingRandomAccessFile>
+		<RollingRandomAccessFile name="BAM"
+			filePattern="${log4j.output.dir}/bam/bam.%d{yyyy-MM-dd}-%i.json">
+			<JsonLayout complete="false" compact="true" eventEol="true" locationInfo="true" properties="true" includeStacktrace="true"/>
+			<Policies>
+				<OnStartupTriggeringPolicy />
+				<TimeBasedTriggeringPolicy />
+				<SizeBasedTriggeringPolicy size="100MB" />
+			</Policies>
+			<DirectWriteRolloverStrategy
+				maxFiles="9">
+				<Delete basePath="${log4j.output.dir}/bam" maxDepth="1">
 					<IfAccumulatedFileCount exceeds="20" />
 				</Delete>
 			</DirectWriteRolloverStrategy>
@@ -26,9 +41,11 @@
 		<Root level="${log4j.root.level}">
 			<AppenderRef ref="FILE" />
 		</Root>
-		<Logger name="ca.bc.gov" level="${log4j.app.level}"
-			additivity="false">
+		<Logger name="ca.bc.gov" level="${log4j.app.level}" additivity="false">
 			<AppenderRef ref="FILE" />
+		</Logger>
+		<Logger name="bam." level="TRACE" additivity="false">
+			<AppenderRef ref="BAM" />
 		</Logger>
 	</Loggers>
 </Configuration>

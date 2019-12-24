@@ -24,8 +24,8 @@ filebeat.inputs:
                   event.Put('client.ip', m[2]);
                   event.Put('http.request.timestamp', m[5]);
                   event.Put('http.request.method', m[6]);
-                  event.Put('http.request.path', (m[7].match(/^[^?]+/gm) || [''])[0]);
-                  event.Put('http.request.queryString', (m[7].match(/\?.+$/gm)[0]) || [''][0]);
+                  event.Put('http.request.path', [].concat(m[7].match(/^[^?]+/gm) || [''], [''])[0]);
+                  event.Put('http.request.queryString', [].concat(m[7].match(/\?.+$/gm) || [''], [''])[0]);
                   event.Put('http.request.uri', m[7]);
                   event.Put('http.version', m[8]);
                   event.Put('http.response.status_code', m[9]);
@@ -55,6 +55,10 @@ filebeat.inputs:
       - drop_fields:
           fields: [request.timestamp]
       - add_locale: ~
+      - add_fields:
+          target: ''
+          fields:
+            level: 'access'
   - type: log
     enabled: true
     encoding: utf-8
@@ -62,7 +66,20 @@ filebeat.inputs:
     json.message_key: message
     json.add_error_key: true
     paths:
-      - /usr/local/tomcat/logs/webapp.*.json
+      - /usr/local/tomcat/logs/webapp/webapp.*.json
+    fields:
+        webapp: true
+    processors:
+      - add_locale: ~
+
+  - type: log
+    enabled: true
+    encoding: utf-8
+    json.keys_under_root: true
+    json.message_key: message
+    json.add_error_key: true
+    paths:
+      - /usr/local/tomcat/logs/bam/bam.*.json
     fields:
         webapp: true
     processors:
@@ -70,8 +87,7 @@ filebeat.inputs:
       - add_fields:
           target: ''
           fields:
-            level: 'access'
-
+            bam: 'true'
 processors:
 - add_fields:
     target: 'app'

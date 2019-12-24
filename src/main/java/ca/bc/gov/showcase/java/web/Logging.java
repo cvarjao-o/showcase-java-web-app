@@ -3,7 +3,6 @@ package ca.bc.gov.showcase.java.web;
 import java.io.IOException;
 import java.io.PrintWriter;
 import java.lang.invoke.MethodHandles;
-import java.net.InetAddress;
 import java.util.Arrays;
 import java.util.List;
 
@@ -67,14 +66,7 @@ public class Logging extends HttpServlet {
 		response.setContentType("text/html");
 		writer.append("<html>").append('\n');
 		writer.append("<body>").append('\n');
-		writer.append("URL: ").append(request.getRequestURL()).append('\n');
-		writer.append("URI: ").append(request.getRequestURI()).append('\n');
-		writer.append("Context Path: ").append(request.getContextPath()).append('\n');
-		writer.append("Path Info: ").append(request.getPathInfo()).append('\n');
-		writer.append("Protocol: ").append(request.getProtocol()).append('\n');
-		InetAddress ip = InetAddress.getLocalHost();
-		writer.append("Hostname: ").append(ip.getHostName()).append('\n');
-		writer.append("IP: ").append(ip.getHostAddress()).append('\n');
+		InfoServlet.write(request, writer);
 		writer.append("<form>").append('\n');
 		writer.append("<input type=\"text\" name=\"message\" value=\"Hello!\">").append('\n');
 		writer.append("<select name=\"level\">").append('\n');

@@ -14,7 +14,15 @@
       },
       "spec": {
         "strategy": {
-          "resources": {}
+          "type": "Rolling",
+          "activeDeadlineSeconds": 21600,
+          "rollingParams": {
+            "maxUnavailable": 1,
+            "maxSurge": 3,
+            "intervalSeconds": 1,
+            "timeoutSeconds": 600,
+            "updatePeriodSeconds": 1
+          }
         },
         "triggers": [
           {
@@ -38,7 +46,7 @@
             }
           }
         ],
-        "replicas": 1,
+        "replicas": 3,
         "test": false,
         "selector": {
           "deploymentconfig": "showcase-java-web-app"
@@ -69,12 +77,12 @@
                 ],
                 "resources": {
                   "requests": {
-                    "cpu": "50m",
+                    "cpu": "100m",
                     "memory": "192Mi"
                   },
                   "limits": {
                     "memory": "256Mi",
-                    "cpu": "200m"
+                    "cpu": "500m"
                   }
                 },
                 "env": [
@@ -96,12 +104,36 @@
                   }
                 ],
                 "imagePullPolicy": "Always",
+                "readinessProbe": {
+                  "failureThreshold": 3,
+                  "httpGet": {
+                    "path": "/info",
+                    "port": 8080,
+                    "scheme": "HTTP"
+                  },
+                  "initialDelaySeconds": 30,
+                  "periodSeconds": 2,
+                  "successThreshold": 3,
+                  "timeoutSeconds": 2
+                },
                 "volumeMounts": [
                   {
                     "name": "access-logs",
                     "mountPath": "/usr/local/tomcat/logs"
                   }
-                ]
+                ],
+                "terminationGracePeriodSeconds": 120,
+                "lifecycle": {
+                  "preStop": {
+                    "exec": {
+                      "command": [
+                        "kill",
+                        "-15",
+                        "1"
+                      ]
+                    }
+                  }
+                }
               },
               {
                 "name": "filebeat",
@@ -183,7 +215,8 @@
               }
             ]
           }
-        }
+        },
+        "minReadySeconds": 300
       },
       "status": {
         "latestVersion": 0,
